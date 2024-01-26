@@ -180,7 +180,7 @@ fn main() {
 
     test.spaces[1][2].set_state(Alive);
     test.spaces[2][2].set_state(Alive);
-    test.spaces[1][2].set_state(Alive);
+    test.spaces[2][1].set_state(Alive);
 
     test.spaces[3][2].set_state(Alive);
     test.spaces[3][4].set_state(Alive);
