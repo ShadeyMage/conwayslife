@@ -5,12 +5,14 @@ use std::{
     thread,
     time
 };
+use rand::{Rng,SeedableRng};
+use rand::rngs::StdRng;
+
 use serde::{Serialize, Deserialize};
 
 use crate::CellState::{Alive, Border, Dead};
 use clap::Parser;
 
-const SEED: u64 = 13312412315;
 const CLEAR_SCR: &str = "\x1b[2J";
 const FIRST_COL: &str = "\x1b[H";
 
@@ -20,7 +22,7 @@ const BORDER: &str = "▒";
 const BLOCK: &str = "█";
 const BLANK: &str = " ";
 
-const TIMER: time::Duration = time::Duration::from_millis(500);
+const RAND_THRESHOLD: u8 = u8::MAX / 8;
 
 macro_rules! clear_screen {
     () => {
@@ -37,6 +39,10 @@ struct Args {
     width: usize,
     #[arg(long, default_value_t = 50)]
     height: usize,
+    #[arg(long, short, default_value_t = 0)]
+    seed: u64,
+    #[arg(long, short, default_value_t= 500)]
+    time: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -58,9 +64,7 @@ impl Cell {
             will_live: false,
         }
     }
-    fn set_will(&mut self, f: bool) {
-        self.will_live = f
-    }
+
     fn set_state(&mut self, state: CellState) {
         self.state = state;
     }
@@ -74,6 +78,7 @@ struct Board {
 }
 impl Board {
     fn new(width: usize, height: usize) -> Self {
+        
         let mut cells: Vec<Vec<Cell>> = Vec::new();
 
         cells.push(vec![Cell::new(Border); width + (PAD * 2)]);
@@ -89,6 +94,23 @@ impl Board {
         }
     }
 
+    fn randomize_rows(&mut self, seed: u64) {
+        let mut rng = StdRng::seed_from_u64(seed);
+        for row in self.spaces.iter_mut() {
+            for cell in row.iter_mut() {
+                match cell.state {
+                    Border => {},
+                    _ => {
+                        let value: u8 = rng.gen::<u8>();
+                        if value < RAND_THRESHOLD {
+                            cell.set_state(Alive);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn update_will(&mut self) {
         for (horizontal_index, row) in self.clone().spaces.iter_mut().enumerate() {
             for (vertical_index, cell) in row.clone().iter_mut().enumerate() {
@@ -96,16 +118,16 @@ impl Board {
                     Alive => {
                         let neighbors = self.neighbour_check(horizontal_index, vertical_index);
                         match neighbors {
-                            2 | 3 => cell.set_will(true),
-                            _ => cell.set_will(false)
+                            2 | 3 => self.spaces[horizontal_index][vertical_index].will_live = true,
+                            _ => self.spaces[horizontal_index][vertical_index].will_live = false,
                         }
                     },
                     Border => {},
                     Dead => {
                         let neighbors = self.neighbour_check(horizontal_index, vertical_index);
                         match neighbors {
-                            3 => cell.set_will(true),
-                            _ => cell.set_will(false)
+                            3 => self.spaces[horizontal_index][vertical_index].will_live = true,
+                            _ => self.spaces[horizontal_index][vertical_index].will_live = false
                         }
                     }
                 }
@@ -121,7 +143,7 @@ impl Board {
                     (Alive | Dead, true) => cell.set_state(Alive),
                     (_,_) => cell.set_state(Dead)
                 }
-                cell.set_will(false);
+                cell.will_live = false;
             }
         }
     }
@@ -153,7 +175,7 @@ impl Board {
         }
     }
 
-    fn game_loop(&mut self) {
+    fn game_loop(&mut self, delay: time::Duration) {
         let mut frame_counter: u128 = 0;
         loop {
             frame_counter += 1;
@@ -162,7 +184,7 @@ impl Board {
             self.update_will();
             self.change_based_on_will();
             println!("\nFrame: {}", frame_counter);
-            thread::sleep(TIMER);
+            thread::sleep(delay);
         }
     }
 }
@@ -174,37 +196,20 @@ fn pad(mut v: Vec<Cell>) -> Vec<Cell> {
 }
 
 fn main() {
+    let mut rng = rand::thread_rng();
     let args: Args = Args::parse();
-    let mut test: Board = Board::new(args.width, args.height);
+    let seed_val = match args.seed {
+        0 => rng.gen::<u64>(),
+        _ => args.seed,
+    };
+
+    let mut test: Board = Board::new(
+        args.width, 
+        args.height,
+    );
+    test.randomize_rows(seed_val);
     clear_screen!();
-
-    test.spaces[1][2].set_state(Alive);
-    test.spaces[2][2].set_state(Alive);
-    test.spaces[2][1].set_state(Alive);
-
-    test.spaces[3][2].set_state(Alive);
-    test.spaces[3][4].set_state(Alive);
-    test.spaces[2][3].set_state(Alive);
-    test.spaces[3][2].set_state(Alive);
-    test.spaces[7][4].set_state(Alive);
-    test.spaces[13][13].set_state(Alive);
-    test.spaces[12][13].set_state(Alive);
-    test.spaces[11][13].set_state(Alive);
-    test.spaces[7][7].set_state(Alive);
-    test.spaces[6][7].set_state(Alive);
-    test.spaces[10][10].set_state(Alive);
-
-    test.spaces[23][2].set_state(Alive);
-    test.spaces[23][4].set_state(Alive);
-    test.spaces[22][3].set_state(Alive);
-    test.spaces[32][2].set_state(Alive);
-    test.spaces[27][4].set_state(Alive);
-    test.spaces[13][13].set_state(Alive);
-    test.spaces[19][13].set_state(Alive);
-    test.spaces[19][14].set_state(Alive);
-    test.spaces[19][15].set_state(Alive);
-    test.spaces[16][7].set_state(Alive);
-    test.spaces[10][3].set_state(Alive);
-
-    test.game_loop();
+    test.game_loop(
+        time::Duration::from_millis(args.time)
+    );
 }
