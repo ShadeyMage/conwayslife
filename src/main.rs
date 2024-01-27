@@ -1,35 +1,37 @@
-use std::{
-    io::{
-        self, Write
-    },
-    thread,
-    time
-};
+use std::{thread, time::{SystemTime, UNIX_EPOCH}, time};
+
 use rand::{Rng,SeedableRng};
 use rand::rngs::StdRng;
-
 use serde::{Serialize, Deserialize};
-
-use crate::CellState::{Alive, Border, Dead};
 use clap::Parser;
 
-const CLEAR_SCR: &str = "\x1b[2J";
-const FIRST_COL: &str = "\x1b[H";
-
+const CLEAR_SCR: &str = "[2J";
+const FIRST_COL: &str = "[1;1H";
 const PAD: usize = 1;
 
-const BORDER: &str = "▒";
-const BLOCK: &str = "█";
-const BLANK: &str = " ";
+const BORDER: char = '▒';
+const BLOCK: char = '█';
+const BLANK: char = ' ';
+const RAND_THRESHOLD: u8 = u8::MAX / 6;
 
-const RAND_THRESHOLD: u8 = u8::MAX / 8;
+use crate::CellState::{Alive, Border, Dead};
 
 macro_rules! clear_screen {
     () => {
-        print!("{esc}c", esc = 27 as char);
-        io::stdout().flush().unwrap();
+        print!("{esc}{CS}{esc}{FC}", esc = 27 as char, CS = CLEAR_SCR, FC = FIRST_COL);
     };
 }
+
+
+/* macro_rules! clear_screen {
+    () => {
+        let mut stdout = stdout();
+        queue!(stdout, 
+            Clear(ClearType::All),
+            Clear(ClearType::Purge),
+        ).unwrap();
+    }
+} */
 
 
 #[derive(Parser, Debug)]
@@ -56,17 +58,28 @@ enum CellState {
 struct Cell {
     state: CellState,
     will_live: bool,
+    symbol: char,
 }
 impl Cell {
     fn new(state: CellState) -> Self {
         Self {
             state,
             will_live: false,
+            symbol: match state {
+                Alive => BLOCK,
+                Border => BORDER,
+                Dead => BLANK,
+            }
         }
     }
 
     fn set_state(&mut self, state: CellState) {
         self.state = state;
+        self.symbol = match state {
+            Alive => BLOCK,
+            Border => BORDER,
+            Dead => BLANK,
+        }
     }
 }
 
@@ -161,18 +174,22 @@ impl Board {
         chk
     }
 
-    fn reveal(&self) {
-        print!("{}{}", CLEAR_SCR, FIRST_COL);
+    fn reveal(&self, frame: u128) {
+        let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let mut res = String::new();
         for row in &self.spaces {
             for cell in row {
-                match cell.state {
-                    Alive => print!("{}", BLOCK),
-                    Border => print!("{}", BORDER),
-                    Dead => print!("{}", BLANK),
-                }
+                res.push(cell.symbol)
+                /* match cell.state {
+                    Alive => res.push(BLOCK),
+                    Border => res.push(BORDER),
+                    Dead => res.push(BLANK),
+                } */
             }
-            print!("\r\n")
+            res.push('\n');
         }
+        let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        println!("{}\nFrames: {}\nTime to Print: {:?}\r\n", res, frame, (end-start));
     }
 
     fn game_loop(&mut self, delay: time::Duration) {
@@ -180,10 +197,9 @@ impl Board {
         loop {
             frame_counter += 1;
             clear_screen!();
-            self.reveal();
+            self.reveal(frame_counter);
             self.update_will();
             self.change_based_on_will();
-            println!("\nFrame: {}", frame_counter);
             thread::sleep(delay);
         }
     }
@@ -209,7 +225,9 @@ fn main() {
     );
     test.randomize_rows(seed_val);
     clear_screen!();
+    test.reveal(1);
+    
     test.game_loop(
         time::Duration::from_millis(args.time)
-    );
+    ); 
 }
