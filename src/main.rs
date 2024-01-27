@@ -1,4 +1,9 @@
-use std::{thread, time::{SystemTime, UNIX_EPOCH}, time};
+use std::{
+    io::{self, Write},
+    time::{self, SystemTime, UNIX_EPOCH}
+};
+
+use spin_sleep;
 
 use rand::{Rng,SeedableRng};
 use rand::rngs::StdRng;
@@ -16,23 +21,17 @@ const RAND_THRESHOLD: u8 = u8::MAX / 6;
 
 use crate::CellState::{Alive, Border, Dead};
 
+macro_rules! flush {
+    () => {
+        io::stdout().flush().unwrap();
+    }
+}
+
 macro_rules! clear_screen {
     () => {
         print!("{esc}{CS}{esc}{FC}", esc = 27 as char, CS = CLEAR_SCR, FC = FIRST_COL);
     };
 }
-
-
-/* macro_rules! clear_screen {
-    () => {
-        let mut stdout = stdout();
-        queue!(stdout, 
-            Clear(ClearType::All),
-            Clear(ClearType::Purge),
-        ).unwrap();
-    }
-} */
-
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -180,16 +179,12 @@ impl Board {
         for row in &self.spaces {
             for cell in row {
                 res.push(cell.symbol)
-                /* match cell.state {
-                    Alive => res.push(BLOCK),
-                    Border => res.push(BORDER),
-                    Dead => res.push(BLANK),
-                } */
             }
             res.push('\n');
         }
         let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         println!("{}\nFrames: {}\nTime to Print: {:?}\r\n", res, frame, (end-start));
+        flush!();
     }
 
     fn game_loop(&mut self, delay: time::Duration) {
@@ -197,10 +192,10 @@ impl Board {
         loop {
             frame_counter += 1;
             clear_screen!();
-            self.reveal(frame_counter);
             self.update_will();
             self.change_based_on_will();
-            thread::sleep(delay);
+            self.reveal(frame_counter);
+            spin_sleep::sleep(delay);
         }
     }
 }
