@@ -17,7 +17,6 @@ const PAD: usize = 1;
 const BORDER: char = '▒';
 const BLOCK: char = '█';
 const BLANK: char = ' ';
-const RAND_THRESHOLD: u8 = u8::MAX / 6;
 
 use crate::CellState::{Alive, Border, Dead};
 
@@ -53,6 +52,8 @@ struct Args {
     seed: u64,
     #[arg(long, short, default_value_t= 500)]
     time: u64,
+    #[arg(long, default_value_t = 8)]
+    threshold: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -115,7 +116,7 @@ impl Board {
         }
     }
 
-    fn randomize_rows(&mut self, seed: u64) {
+    fn randomize_rows(&mut self, seed: u64, threshold: u8) {
         let mut rng = StdRng::seed_from_u64(seed);
         for row in self.spaces.iter_mut() {
             for cell in row.iter_mut() {
@@ -123,7 +124,7 @@ impl Board {
                     Border => {},
                     _ => {
                         let value: u8 = rng.gen::<u8>();
-                        if value < RAND_THRESHOLD {
+                        if value < threshold {
                             cell.set_state(Alive);
                         }
                     }
@@ -227,7 +228,8 @@ fn main() {
         args.width, 
         args.height,
     );
-    test.randomize_rows(seed_val);
+    let threshold: u8 = u8::MAX / args.threshold;
+    test.randomize_rows(seed_val, threshold);
     clear_screen!();
     test.reveal(1);
     
