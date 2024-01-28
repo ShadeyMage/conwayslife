@@ -27,10 +27,19 @@ macro_rules! flush {
     }
 }
 
+macro_rules! print_from_first_col {
+    () => {
+        print!("{esc}{FC}", esc = 27 as char, FC = FIRST_COL);
+        flush!()
+    }
+}
+
 macro_rules! clear_screen {
     () => {
-        print!("{esc}{CS}{esc}{FC}", esc = 27 as char, CS = CLEAR_SCR, FC = FIRST_COL);
-    };
+        print!("{esc}{CS}", esc = 27 as char, CS = CLEAR_SCR);
+        print_from_first_col!();
+        flush!();
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -191,7 +200,7 @@ impl Board {
         let mut frame_counter: u128 = 0;
         loop {
             frame_counter += 1;
-            clear_screen!();
+            print_from_first_col!();
             self.update_will();
             self.change_based_on_will();
             self.reveal(frame_counter);
