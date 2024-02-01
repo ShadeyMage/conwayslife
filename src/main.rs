@@ -1,18 +1,17 @@
 use std::{
     io::{self, Write},
-    time::{self, SystemTime, UNIX_EPOCH}
+    time::{self, SystemTime, UNIX_EPOCH},
 };
 
-use spin_sleep;
-
-use rand::{Rng,SeedableRng};
-use rand::rngs::StdRng;
-use serde::{Serialize, Deserialize};
 use clap::Parser;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 
 const CLEAR_SCR: &str = "[2J";
 const FIRST_COL: &str = "[1;1H";
-const PAD: usize = 1;
+const ESC: char = 27 as char;
+const PAD: usize = 2;
 
 const BORDER: char = '▒';
 const BLOCK: char = '█';
@@ -23,22 +22,22 @@ use crate::CellState::{Alive, Border, Dead};
 macro_rules! flush {
     () => {
         io::stdout().flush().unwrap();
-    }
+    };
 }
 
 macro_rules! print_from_first_col {
     () => {
-        print!("{esc}{FC}", esc = 27 as char, FC = FIRST_COL);
+        print!("{esc}{FC}", esc = ESC, FC = FIRST_COL);
         flush!()
-    }
+    };
 }
 
 macro_rules! clear_screen {
     () => {
-        print!("{esc}{CS}", esc = 27 as char, CS = CLEAR_SCR);
+        print!("{esc}{CS}", esc = ESC, CS = CLEAR_SCR);
         print_from_first_col!();
         flush!();
-    }
+    };
 }
 
 #[derive(Parser, Debug)]
@@ -50,7 +49,7 @@ struct Args {
     height: usize,
     #[arg(long, short, default_value_t = 0)]
     seed: u64,
-    #[arg(long, short, default_value_t= 500)]
+    #[arg(long, short, default_value_t = 500)]
     time: u64,
     #[arg(long, default_value_t = 8)]
     threshold: u8,
@@ -78,7 +77,7 @@ impl Cell {
                 Alive => BLOCK,
                 Border => BORDER,
                 Dead => BLANK,
-            }
+            },
         }
     }
 
@@ -100,7 +99,6 @@ struct Board {
 }
 impl Board {
     fn new(width: usize, height: usize) -> Self {
-        
         let mut cells: Vec<Vec<Cell>> = Vec::new();
 
         cells.push(vec![Cell::new(Border); width + (PAD * 2)]);
@@ -121,7 +119,7 @@ impl Board {
         for row in self.spaces.iter_mut() {
             for cell in row.iter_mut() {
                 match cell.state {
-                    Border => {},
+                    Border => {}
                     _ => {
                         let value: u8 = rng.gen::<u8>();
                         if value < threshold {
@@ -134,7 +132,7 @@ impl Board {
     }
 
     fn update_will(&mut self) {
-        for (horizontal_index, row) in self.clone().spaces.iter_mut().enumerate() {
+        for (horizontal_index, row) in self.spaces.clone().iter_mut().enumerate() {
             for (vertical_index, cell) in row.clone().iter_mut().enumerate() {
                 match cell.state {
                     Alive => {
@@ -143,13 +141,13 @@ impl Board {
                             2 | 3 => self.spaces[horizontal_index][vertical_index].will_live = true,
                             _ => self.spaces[horizontal_index][vertical_index].will_live = false,
                         }
-                    },
-                    Border => {},
+                    }
+                    Border => {}
                     Dead => {
                         let neighbors = self.neighbour_check(horizontal_index, vertical_index);
                         match neighbors {
                             3 => self.spaces[horizontal_index][vertical_index].will_live = true,
-                            _ => self.spaces[horizontal_index][vertical_index].will_live = false
+                            _ => self.spaces[horizontal_index][vertical_index].will_live = false,
                         }
                     }
                 }
@@ -161,9 +159,9 @@ impl Board {
         for row in self.spaces.iter_mut() {
             for cell in row.iter_mut() {
                 match (cell.state, cell.will_live) {
-                    (Border,_) => {},
+                    (Border, _) => {}
                     (Alive | Dead, true) => cell.set_state(Alive),
-                    (_,_) => cell.set_state(Dead)
+                    (_, _) => cell.set_state(Dead),
                 }
                 cell.will_live = false;
             }
@@ -172,14 +170,22 @@ impl Board {
 
     fn neighbour_check(&self, row: usize, col: usize) -> usize {
         // because of padding, assume always inbound
-        let chk: usize = vec![
+        let chk: usize = [
             // check horizontal neighbours
-            self.spaces[row][col+1], self.spaces[row][col-1],
+            self.spaces[row][col + 1],
+            self.spaces[row][col - 1],
             // check diagonal neighbours
-            self.spaces[row-1][col-1], self.spaces[row+1][col+1], self.spaces[row+1][col-1], self.spaces[row-1][col+1],
+            self.spaces[row - 1][col - 1],
+            self.spaces[row + 1][col + 1],
+            self.spaces[row + 1][col - 1],
+            self.spaces[row - 1][col + 1],
             // check vertical neighbours
-            self.spaces[row-1][col],self.spaces[row + 1][col]
-        ].iter().filter(|&cell| matches!(cell.state, Alive)).count();
+            self.spaces[row - 1][col],
+            self.spaces[row + 1][col],
+        ]
+        .iter()
+        .filter(|&cell| matches!(cell.state, Alive))
+        .count();
         chk
     }
 
@@ -193,7 +199,12 @@ impl Board {
             res.push('\n');
         }
         let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        println!("{}\nFrames: {}\nTime to Print: {:?}\r\n", res, frame, (end-start));
+        println!(
+            "{}\nFrames: {}\nTime to Print: {:?}",
+            res,
+            frame,
+            (end - start)
+        );
         flush!();
     }
 
@@ -211,8 +222,10 @@ impl Board {
 }
 
 fn pad(mut v: Vec<Cell>) -> Vec<Cell> {
-    v.insert(0, Cell::new(Border));
-    v.push(Cell::new(Border));
+    for _ in 0..PAD {
+        v.insert(0, Cell::new(Border));
+        v.push(Cell::new(Border));
+    }
     v
 }
 
@@ -224,16 +237,11 @@ fn main() {
         _ => args.seed,
     };
 
-    let mut test: Board = Board::new(
-        args.width, 
-        args.height,
-    );
+    let mut test: Board = Board::new(args.width, args.height);
     let threshold: u8 = u8::MAX / args.threshold;
     test.randomize_rows(seed_val, threshold);
     clear_screen!();
     test.reveal(1);
-    
-    test.game_loop(
-        time::Duration::from_millis(args.time)
-    ); 
+
+    test.game_loop(time::Duration::from_millis(args.time));
 }
