@@ -42,10 +42,11 @@ macro_rules! clear_screen {
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+#[clap(disable_help_flag = true)]
 struct Args {
-    #[arg(long, default_value_t = 50)]
+    #[arg(long, default_value_t = 50, short = 'w')]
     width: usize,
-    #[arg(long, default_value_t = 50)]
+    #[arg(long, default_value_t = 50, short = 'h')]
     height: usize,
     #[arg(long, short, default_value_t = 0)]
     seed: u64,
@@ -53,6 +54,8 @@ struct Args {
     time: u64,
     #[arg(long, default_value_t = 8)]
     threshold: u8,
+    #[clap(long, action = clap::ArgAction::HelpLong)]
+    help: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
